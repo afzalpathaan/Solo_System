@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#080611"/>
+      <stop offset=".52" stop-color="#17102d"/>
+      <stop offset="1" stop-color="#03030a"/>
+    </linearGradient>
+    <radialGradient id="iris" cx=".48" cy=".42" r=".68">
+      <stop offset="0" stop-color="#f2c8ff"/>
+      <stop offset=".18" stop-color="#c66cff"/>
+      <stop offset=".48" stop-color="#7928ff"/>
+      <stop offset=".78" stop-color="#30106f"/>
+      <stop offset="1" stop-color="#09051c"/>
+    </radialGradient>
+    <linearGradient id="skin" x1="0" y1="0" x2=".15" y2="1">
+      <stop offset="0" stop-color="#fff0ff"/>
+      <stop offset=".42" stop-color="#e9b9ff"/>
+      <stop offset="1" stop-color="#8b4ec8"/>
+    </linearGradient>
+    <linearGradient id="lash" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8eaff"/>
+      <stop offset=".4" stop-color="#bd72ff"/>
+      <stop offset="1" stop-color="#5e25ce"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff4ff"/>
+      <stop offset=".28" stop-color="#b86cff"/>
+      <stop offset=".62" stop-color="#6c2ce8"/>
+      <stop offset="1" stop-color="#32105e"/>
+    </linearGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.2"/>
+    </filter>
+    <clipPath id="round"><rect x="12" y="12" width="488" height="488" rx="92"/></clipPath>
+  </defs>
+  <g clip-path="url(#round)">
+    <rect width="512" height="512" fill="url(#bg)"/>
+    <circle cx="256" cy="256" r="210" fill="none" stroke="#4e20a2" stroke-width="1" opacity=".45"/>
+    <circle cx="256" cy="256" r="180" fill="none" stroke="#8d48ff" stroke-width="1" stroke-dasharray="3 10" opacity=".5"/>
+    <path d="M0 115 L120 0 M392 0 L512 120 M0 397 L113 512 M400 512 L512 397" stroke="#7e39ef" stroke-width="1.5" opacity=".25"/>
+    <!-- outer system frame -->
+    <rect x="20" y="20" width="472" height="472" rx="84" fill="none" stroke="#a85bff" stroke-width="2" opacity=".85" filter="url(#glow)"/>
+    <rect x="31" y="31" width="450" height="450" rx="75" fill="none" stroke="#6130a7" stroke-width="1.5"/>
+    <!-- tracking reticle -->
+    <g stroke="#b987ff" fill="none" opacity=".88">
+      <circle cx="256" cy="242" r="139" stroke-width="1.4" stroke-dasharray="2 8"/>
+      <circle cx="256" cy="242" r="119" stroke-width="1" opacity=".55"/>
+      <path d="M256 70 V116 M256 368 V414 M84 242 H130 M382 242 H428" stroke-width="2"/>
+      <path d="M113 131 l19 0 l0 19 M399 131 h-19 v19 M113 354 h19 v-19 M399 354 h-19 v-19" stroke-width="2.5"/>
+    </g>
+    <!-- anime eye silhouette -->
+    <path d="M61 242 Q119 148 218 143 Q321 131 425 221 Q442 237 451 245 Q395 224 345 249 Q287 280 224 282 Q132 284 61 242Z" fill="#03020a" stroke="#6f31d3" stroke-width="2.5" filter="url(#glow)"/>
+    <!-- upper lash / brow -->
+    <path d="M57 240 Q121 142 218 139 Q329 126 431 220 Q369 189 309 187 Q201 154 110 220 L72 254Z" fill="#10071d"/>
+    <path d="M59 239 Q123 146 219 141 Q324 129 429 220 Q360 185 303 183 Q193 155 108 218" fill="none" stroke="url(#lash)" stroke-width="8" stroke-linecap="round"/>
+    <path d="M78 219 L42 191 L87 205 L61 171 L112 203 L96 166 L137 195" fill="#180b2c" stroke="#9d4fff" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M387 195 L424 166 L410 203 L454 187 L425 220" fill="#170a2a" stroke="#9d4fff" stroke-width="2" stroke-linejoin="round"/>
+    <!-- eye white -->
+    <path d="M83 239 Q151 179 225 178 Q318 173 405 225 Q353 256 293 269 Q177 294 83 239Z" fill="url(#skin)"/>
+    <path d="M83 239 Q151 179 225 178 Q318 173 405 225 Q353 256 293 269 Q177 294 83 239Z" fill="none" stroke="#f5d9ff" stroke-width="2"/>
+    <!-- iris -->
+    <ellipse cx="259" cy="225" rx="66" ry="73" fill="#20064c" stroke="#d9a0ff" stroke-width="3" filter="url(#glow)"/>
+    <ellipse cx="259" cy="225" rx="59" ry="66" fill="url(#iris)"/>
+    <g stroke="#f2c7ff" stroke-width="2" opacity=".8">
+      <path d="M259 166 L252 191 M281 170 L274 194 M301 181 L290 201 M316 200 L298 213 M320 226 L300 228 M311 250 L294 243 M294 274 L283 254 M269 288 L267 260 M244 286 L248 258 M222 272 L235 250 M204 251 L229 238 M200 226 L226 226 M207 202 L232 213 M224 181 L242 201"/>
+    </g>
+    <ellipse cx="259" cy="230" rx="28" ry="40" fill="#090419"/>
+    <ellipse cx="259" cy="231" rx="17" ry="29" fill="#16092f"/>
+    <circle cx="238" cy="202" r="15" fill="#fff7ff"/>
+    <circle cx="281" cy="246" r="7" fill="#e9c0ff"/>
+    <circle cx="290" cy="204" r="4" fill="#fff"/>
+    <path d="M95 238 Q151 190 216 187" fill="none" stroke="#fff0ff" stroke-width="3" opacity=".75"/>
+    <!-- lower lash -->
+    <path d="M83 240 Q174 294 293 269 Q359 255 405 225" fill="none" stroke="#2d0b53" stroke-width="8" stroke-linecap="round"/>
+    <path d="M111 263 l-10 22 M142 276 l-4 19 M178 284 l1 17 M333 263 l9 18 M365 250 l16 13" stroke="#9b55ed" stroke-width="3" stroke-linecap="round"/>
+    <!-- eyebrow, sharp anime styling -->
+    <path d="M102 153 Q204 105 327 131 Q357 137 383 151 Q286 119 194 141 Q144 151 102 153Z" fill="#07040f" stroke="#7e3ed6" stroke-width="2"/>
+    <path d="M115 149 Q210 113 319 134" fill="none" stroke="#c28aff" stroke-width="2" opacity=".8"/>
+    <!-- system scan lines -->
+    <g stroke="#d2a5ff" stroke-width="1" opacity=".65">
+      <path d="M68 309 H126 M386 309 H444"/>
+      <path d="M78 317 H109 M403 317 H434"/>
+      <path d="M98 91 H154 M358 91 H414"/>
+    </g>
+    <g fill="#d9b1ff">
+      <circle cx="68" cy="309" r="3"/><circle cx="444" cy="309" r="3"/>
+      <circle cx="98" cy="91" r="2.5"/><circle cx="414" cy="91" r="2.5"/>
+    </g>
+    <!-- bottom title plate -->
+    <path d="M102 365 L127 347 H385 L410 365 L390 383 H122Z" fill="#090512" stroke="url(#metal)" stroke-width="2"/>
+    <text x="256" y="371" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="900" letter-spacing="5" fill="#f3ddff">SOLO SYSTEM</text>
+    <path d="M183 397 H329" stroke="#8c48ee" stroke-width="2"/>
+    <path d="M256 389 l7 8 -7 8 -7 -8Z" fill="#e4c3ff" stroke="#9c4bff" stroke-width="1.5"/>
+    <!-- tiny HUD corners -->
+    <g fill="none" stroke="#bd83ff" stroke-width="2">
+      <path d="M58 401 v-20 h20 M454 401 v-20 h-20"/>
+      <path d="M58 111 V91 h20 M454 111 V91 h-20"/>
+    </g>
+    <g fill="#c99aff">
+      <circle cx="74" cy="421" r="2"/><circle cx="86" cy="421" r="2"/><circle cx="98" cy="421" r="2"/>
+      <rect x="402" y="416" width="5" height="8"/><rect x="411" y="410" width="5" height="14"/><rect x="420" y="403" width="5" height="21"/>
+    </g>
+  </g>
+</svg>
