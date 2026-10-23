@@ -233,10 +233,45 @@ function dailyReconcile(){let today=todayKey(),y=new Date();y.setDate(y.getDate(
 const ASSISTANT_FILES={"F":"Light_Blue_White_Accent_Rank_F.png","E":"Dark_Blue_Rank_E.png","D":"Black_Purple_Rank_D.png","C":"Golden_Yellow_Rank_C.png","B":"Crimson_Red_Rank_B.png","A":"Emerald_Green_Rank_A.png","S":"Angle_White_Rank_S.png","S+":"Ash_Black_Rank_S+.png","S++":"Heavy_Purple_Black_accent_Rank_S++.png"};
 const ASSISTANT_DATA={"F":"assets/assistant_F.png","E":"assets/assistant_E.png","D":"assets/assistant_D.png","C":"assets/assistant_C.png","B":"assets/assistant_B.png","A":"assets/assistant_A.png","S":"assets/assistant_S.png","S+":"assets/assistant_Splus.png","S++":"assets/assistant_Splusplus.png"};
 let assistantLoadedRank='';
-function assistantSrc(rank){return ASSISTANT_DATA[rank]||''}
+let assistantArtCache={};
+let assistantDb=null;
+const ASSISTANT_DB_NAME='solo-system-silver-artwork';
+const ASSISTANT_DB_VERSION=1;
+function assistantSrc(rank){return assistantArtCache[rank]||assistantSrcDefault(rank)}
+function assistantSrcDefault(rank){return ASSISTANT_DATA[rank]||''}
+function openAssistantDB(){return new Promise((resolve,reject)=>{if(!('indexedDB' in window)){reject(new Error('IndexedDB is not available in this viewer.'));return}let req=indexedDB.open(ASSISTANT_DB_NAME,ASSISTANT_DB_VERSION);req.onupgradeneeded=()=>{let db=req.result;if(!db.objectStoreNames.contains('rankArtwork'))db.createObjectStore('rankArtwork',{keyPath:'rank'})};req.onsuccess=()=>{assistantDb=req.result;assistantDb.onversionchange=()=>assistantDb.close();resolve(assistantDb)};req.onerror=()=>reject(req.error||new Error('Could not open image storage.'));req.onblocked=()=>reject(new Error('Image storage upgrade is blocked by another open app tab.'))})}
+function dbPutArtwork(rank,dataUrl){return new Promise((resolve,reject)=>{if(!assistantDb)return reject(new Error('Image storage is not ready.'));let tx=assistantDb.transaction('rankArtwork','readwrite');tx.objectStore('rankArtwork').put({rank,dataUrl,updatedAt:Date.now()});tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||new Error('Image save failed.'));tx.onabort=()=>reject(tx.error||new Error('Image save was interrupted.'))})}
+function dbDeleteArtwork(rank){return new Promise((resolve,reject)=>{if(!assistantDb)return reject(new Error('Image storage is not ready.'));let tx=assistantDb.transaction('rankArtwork','readwrite');tx.objectStore('rankArtwork').delete(rank);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||new Error('Image reset failed.'));tx.onabort=()=>reject(tx.error||new Error('Image reset was interrupted.'))})}
+function dbGetAllArtwork(){return new Promise((resolve,reject)=>{if(!assistantDb)return reject(new Error('Image storage is not ready.'));let tx=assistantDb.transaction('rankArtwork','readonly'),req=tx.objectStore('rankArtwork').getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error||new Error('Could not read saved artwork.'))})}
+async function prepareAssistantArtwork(){
+  try{
+    await openAssistantDB();
+    // Migrate legacy images before removing them from the main app state. Never replace an existing DB image.
+    const existing=await dbGetAllArtwork();
+    const storedRanks=new Set(existing.map(x=>x.rank));
+    const legacy=state.profile.assistantArt&&typeof state.profile.assistantArt==='object'?state.profile.assistantArt:{};
+    for(const [rank,dataUrl] of Object.entries(legacy)){
+      if(!['F','E','D','C','B','A','S','S+','S++'].includes(rank)||typeof dataUrl!=='string'||!dataUrl.startsWith('data:image/'))continue;
+      if(!storedRanks.has(rank)){await dbPutArtwork(rank,dataUrl);storedRanks.add(rank)}
+    }
+    const all=await dbGetAllArtwork();
+    assistantArtCache={};
+    for(const item of all){if(item&&['F','E','D','C','B','A','S','S+','S++'].includes(item.rank)&&typeof item.dataUrl==='string'&&item.dataUrl.startsWith('data:image/'))assistantArtCache[item.rank]=item.dataUrl}
+    // Keep the main JSON state small; artwork now lives in IndexedDB.
+    state.profile.assistantArt={};
+    save();
+    return true;
+  }catch(err){
+    // Keep legacy data intact if storage cannot be opened or migration fails.
+    console.warn('SOLO SYSTEM artwork persistence unavailable:',err);
+    assistantArtCache={...(state.profile.assistantArt||{})};
+    notify('Persistent image storage is unavailable in this viewer. Keep a Studio backup; images may not survive reopening.');
+    return false;
+  }
+}
 function setAssistantImage(rank){
   const img=document.getElementById('assistantImg');
-  const src=(state.profile.assistantArt&&state.profile.assistantArt[rank])||assistantSrc(rank);
+  const src=(assistantArtCache&&assistantArtCache[rank])||assistantSrcDefault(rank);
   if(!img||!src)return;
   if(img.dataset.currentSrc===src&&img.dataset.loaded==='yes')return;
   assistantLoadedRank=rank;img.dataset.currentSrc=src;img.dataset.loaded='no';
@@ -246,15 +281,15 @@ function setAssistantImage(rank){
 }
 let studioPendingData='';
 function studioRank(){return document.getElementById('studioRank')?.value||'F'}
-function refreshStudio(){let r=studioRank(),src=studioPendingData||(state.profile.assistantArt||{})[r]||assistantSrc(r),img=document.getElementById('studioPreview'),empty=document.getElementById('studioPreviewEmpty');document.getElementById('studioRankLabel').textContent=`${r} Rank Assistant`;document.getElementById('studioStatus').textContent=(state.profile.assistantArt||{})[r]?'Custom artwork is saved and applied for this rank.': 'No custom artwork applied; the default rank artwork will be used.';if(src){img.onload=()=>{img.style.display='block';empty.style.display='none'};img.onerror=()=>{img.style.display='none';empty.style.display='block';empty.textContent='No preview available. Upload artwork for this rank.'};img.src=src}else{img.style.display='none';empty.style.display='block';empty.textContent='Select a rank and upload its custom artwork.'}}
+function refreshStudio(){let r=studioRank(),src=studioPendingData||(assistantArtCache||{})[r]||assistantSrcDefault(r),img=document.getElementById('studioPreview'),empty=document.getElementById('studioPreviewEmpty');document.getElementById('studioRankLabel').textContent=`${r} Rank Assistant`;document.getElementById('studioStatus').textContent=(assistantArtCache||{})[r]?'Custom artwork is saved in device storage and applied for this rank.': 'No custom artwork applied; the default rank artwork will be used.';if(src){img.onload=()=>{img.style.display='block';empty.style.display='none'};img.onerror=()=>{img.style.display='none';empty.style.display='block';empty.textContent='No preview available. Upload artwork for this rank.'};img.src=src}else{img.style.display='none';empty.style.display='block';empty.textContent='Select a rank and upload its custom artwork.'}}
 document.getElementById('studioRank')?.addEventListener('change',()=>{studioPendingData='';document.getElementById('studioFile').value='';refreshStudio()});
-document.getElementById('studioFile')?.addEventListener('change',e=>{let f=e.target.files&&e.target.files[0];if(!f)return;if(f.size>10*1024*1024){notify('Please choose an image no larger than 10 MB.');e.target.value='';return}let rd=new FileReader();rd.onload=()=>{studioPendingData=String(rd.result||'');refreshStudio()};rd.onerror=()=>notify('Could not read that image.');rd.readAsDataURL(f)});
-function applyStudioImage(){let r=studioRank();if(!studioPendingData){notify('Choose an image file first.');return}state.profile.assistantArt=state.profile.assistantArt||{};state.profile.assistantArt[r]=studioPendingData;studioPendingData='';save();setAssistantImage(rankFor(state.level).r);refreshStudio();render();notify(`${r}-rank assistant artwork saved.`)}
-function resetStudioImage(){let r=studioRank();if(state.profile.assistantArt)delete state.profile.assistantArt[r];studioPendingData='';document.getElementById('studioFile').value='';save();assistantLoadedRank='';setAssistantImage(rankFor(state.level).r);refreshStudio();notify(`${r}-rank artwork reset to default.`)}
-function exportStudioBackup(){let data={format:'SOLO_SYSTEM_ASSISTANT_STUDIO_V1',assistantArt:state.profile.assistantArt||{}},blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='solo-system-assistant-studio-backup.json';a.click();URL.revokeObjectURL(url)}
-function importStudioBackup(e){let f=e.target.files&&e.target.files[0];if(!f)return;let rd=new FileReader();rd.onload=()=>{try{let x=JSON.parse(rd.result);if(!x||x.format!=='SOLO_SYSTEM_ASSISTANT_STUDIO_V1'||!x.assistantArt||typeof x.assistantArt!=='object')throw Error('invalid');state.profile.assistantArt={...(state.profile.assistantArt||{}),...x.assistantArt};save();assistantLoadedRank='';setAssistantImage(rankFor(state.level).r);refreshStudio();render();notify('Assistant Studio backup imported.')}catch(_){notify('Invalid Assistant Studio backup.')}finally{e.target.value=''}};rd.readAsText(f)}
+document.getElementById('studioFile')?.addEventListener('change',e=>{let f=e.target.files&&e.target.files[0];if(!f)return;if(!/^image\/(png|jpeg|webp)$/.test(f.type)){notify('Please choose a PNG, JPEG, or WebP image.');e.target.value='';return}if(f.size>10*1024*1024){notify('Please choose an image no larger than 10 MB.');e.target.value='';return}let rd=new FileReader();rd.onload=()=>{studioPendingData=String(rd.result||'');refreshStudio()};rd.onerror=()=>notify('Could not read that image.');rd.readAsDataURL(f)});
+async function applyStudioImage(){let r=studioRank();if(!studioPendingData){notify('Choose an image file first.');return}if(!assistantDb){notify('Persistent image storage is not ready. Reopen the app and try again.');return}try{await dbPutArtwork(r,studioPendingData);assistantArtCache[r]=studioPendingData;studioPendingData='';document.getElementById('studioFile').value='';assistantLoadedRank='';setAssistantImage(rankFor(state.level).r);refreshStudio();render();notify(`${r}-rank assistant artwork saved to device storage.`)}catch(err){console.error(err);notify('Could not save image. Device storage may be full; existing artwork was preserved.')}}
+async function resetStudioImage(){let r=studioRank();try{if(assistantDb)await dbDeleteArtwork(r);delete assistantArtCache[r];if(state.profile.assistantArt)delete state.profile.assistantArt[r];studioPendingData='';document.getElementById('studioFile').value='';save();assistantLoadedRank='';setAssistantImage(rankFor(state.level).r);refreshStudio();notify(`${r}-rank artwork reset to default.`)}catch(err){console.error(err);notify('Could not reset artwork. Please try again.')}}
+function exportStudioBackup(){let data={format:'SOLO_SYSTEM_ASSISTANT_STUDIO_V1',assistantArt:assistantArtCache||{}},blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='solo-system-assistant-studio-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+function importStudioBackup(e){let f=e.target.files&&e.target.files[0];if(!f)return;let rd=new FileReader();rd.onload=async()=>{try{let x=JSON.parse(rd.result);if(!x||x.format!=='SOLO_SYSTEM_ASSISTANT_STUDIO_V1'||!x.assistantArt||typeof x.assistantArt!=='object')throw Error('invalid');if(!assistantDb)throw Error('storage unavailable');for(const [rank,dataUrl] of Object.entries(x.assistantArt)){if(!['F','E','D','C','B','A','S','S+','S++'].includes(rank)||typeof dataUrl!=='string'||!dataUrl.startsWith('data:image/'))continue;let approx=Math.max(0,(dataUrl.length-String(dataUrl).indexOf(',')-1)*0.75);if(approx>10*1024*1024)throw Error('image too large');await dbPutArtwork(rank,dataUrl);assistantArtCache[rank]=dataUrl}state.profile.assistantArt={};save();assistantLoadedRank='';setAssistantImage(rankFor(state.level).r);refreshStudio();render();notify('Assistant Studio backup imported and saved locally.')}catch(err){console.error(err);notify('Import failed. Check the backup and available device storage.')}finally{e.target.value=''}};rd.readAsText(f)}
 
 function init(){// Seed starter quests only on a genuinely new install.
 if(!state.quests.length&&!state.migrationNote){state.quests=[{id:uid(),title:'Focused learning session',type:'daily',difficulty:'normal',stat:'Intelligence',schedule:'25 minutes',desc:'Learn one useful concept',active:true},{id:uid(),title:'Physical movement',type:'habit',difficulty:'normal',stat:'Strength',schedule:'20 minutes',desc:'Movement that fits your day',active:true},{id:uid(),title:'Plan tomorrow',type:'daily',difficulty:'easy',stat:'Discipline',schedule:'5 minutes',desc:'Choose the next priorities',active:true}]}syncProgression();state.skillPoints=Math.max(state.skillPoints,Math.floor((state.level-1)/5));document.getElementById('pStart').value=state.profile.start||dateKey();dailyReconcile();render();updateAge();setInterval(updateAge,60000);document.addEventListener('visibilitychange',()=>{if(!document.hidden){dailyReconcile();updateAge();render()}});window.addEventListener('focus',()=>{dailyReconcile();updateAge()});}
-init();setInterval(updateAge,60000);
+prepareAssistantArtwork().finally(()=>{init();refreshStudio()});setInterval(updateAge,60000);
 </script></body></html>
