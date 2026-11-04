@@ -3,7 +3,7 @@
 <meta name="application-version" content="2.2.2">
 <meta name="application-release-type" content="patch"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#080b16">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/svg+xml" href="app-icon.svg"><title>SOLO SYSTEM — v2.2.2 · Grace, XP Audit & Date Clarity</title>
+<link rel="icon" type="image/svg+xml" href="app-icon.svg"><title>SOLO SYSTEM — v2.2.3 · Rollover Finalisation Fix</title>
 <style>
 :root{--bg:#070a14;--panel:#0e1628;--panel2:#111d33;--line:#273b60;--text:#edf3ff;--muted:#9aaccb;--accent:#4c9dff;--glow:#9c7bff;--deep:#122d55;--good:#51dfb2;--bad:#ff6688;--gold:#ffc76b}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 45% -10%,#182b52,var(--bg) 56%);color:var(--text);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;min-height:100vh}button,input,select,textarea{font:inherit}button{cursor:pointer;color:inherit}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -133,7 +133,7 @@ body{overflow-x:hidden}
 .grace-banner strong{font-size:14px;color:#8ccfff;letter-spacing:.03em}
 .grace-banner span{color:#b9c9df;line-height:1.45}
 </style></head><body><div class="app">
-<header class="top"><div class="brand"><div class="sigil">✦</div><div><div class="eyebrow">HUNTER INTERFACE · V2.2.2</div><h1>SOLO SYSTEM</h1></div></div><div class="topright"><span class="pill" id="datePill"></span><button class="button" onclick="showScreen('profile')">Profile</button><button class="button" onclick="showScreen('system')">⚙</button></div></header>
+<header class="top"><div class="brand"><div class="sigil">✦</div><div><div class="eyebrow">HUNTER INTERFACE · V2.2.3</div><h1>SOLO SYSTEM</h1></div></div><div class="topright"><span class="pill" id="datePill"></span><button class="button" onclick="showScreen('profile')">Profile</button><button class="button" onclick="showScreen('system')">⚙</button></div></header>
 
 
 
@@ -248,7 +248,7 @@ function hasAnyCompletion(day){return !!(state.completions[day]&&Object.values(s
 function recomputeStreak(){let today=todayKey(),y=new Date();y.setDate(y.getDate()-1);let start=(hasAnyCompletion(today)||state.recoveryDays[today])?today:dateKey(y),count=0,d=new Date(start+'T12:00:00');for(let i=0;i<800;i++){let k=dateKey(d);if(state.recoveryDays[k]){d.setDate(d.getDate()-1);continue}if(hasAnyCompletion(k)){count++;d.setDate(d.getDate()-1)}else break}state.streak=count}
 function statValue(name){let points=Math.max(0,Number(state.statPoints?.[name])||0);return Math.min(100,Math.round(10+90*(points/(points+40))))}
 function statWeight(q){let base={easy:1,normal:2,hard:4,epic:7,boss:10}[q.difficulty]||2;let xp=Number(q.customXp)||XP[q.difficulty]||25;let standard=XP[q.difficulty]||25;return Math.max(1,Math.min(20,base*Math.min(2,Math.sqrt(xp/standard))))}
-function questStreak(qid){let days=Object.keys(state.completions).filter(d=>state.completions[d]?.[qid]).sort().reverse();if(!days.length)return 0;let d=new Date(days[0]+'T12:00:00'),count=0;for(let i=0;i<800;i++){let k=dateKey(d);if(state.recoveryDays[k]){d.setDate(d.getDate()-1);continue}if(state.completions[k]?.[qid]){count++;d.setDate(d.getDate()-1)}else break}return count}
+function questStreak(qid){let days=Object.keys(state.completions).filter(d=>state.completions[d]?.[qid]).sort().reverse();if(!days.length)return 0;const latest=days[0];const laterMiss=Object.keys(state.missed||{}).some(k=>{let split=k.lastIndexOf('|');return split>0&&k.slice(split+1)===qid&&k.slice(0,split)>latest});if(laterMiss)return 0;let d=new Date(latest+'T12:00:00'),count=0;for(let i=0;i<800;i++){let k=dateKey(d);if(state.recoveryDays[k]){d.setDate(d.getDate()-1);continue}if(state.missed?.[k+'|'+qid])break;if(state.completions[k]?.[qid]){count++;d.setDate(d.getDate()-1)}else break}return count}
 const MILESTONE_DAYS=[1,7,15,30,60,90,120,240,365],MILESTONE_BONUS={1:25,7:100,15:200,30:400,60:700,90:1000,120:1300,240:2500,365:4000};
 function streakCycleStart(qid,day=todayKey()){
   // Anchor a streak cycle to the first actual completion date in the current
@@ -372,40 +372,51 @@ for(let h=0;h<24;h++)document.getElementById('resetHour').insertAdjacentHTML('be
 document.getElementById('resetHour').addEventListener('change',e=>{state.settings.resetHour=+e.target.value;save();render()});
 document.getElementById('themeOverride').addEventListener('change',e=>{state.settings.theme=e.target.value;save();render()});
 function dailyReconcile(){
-  const info=periodInfo(new Date());
-  // Keep only the immediately previous date editable during grace. If the app
-  // was closed for several days, older dates must still be reconciled now.
+  const now=new Date(),info=periodInfo(now);
+  // The date before the current reset period stays editable until the full
+  // grace window has elapsed. Older dates are always reconciled on catch-up.
   const latestFinalized=shiftDateKey(info.periodDay,info.inGrace?-2:-1);
-  // On first run, process only the most recently ended day to avoid retroactive
-  // penalties for dates before this feature was installed.
-  if(!state._lastReconcile){state._lastReconcile=shiftDateKey(latestFinalized,-1)}
-  let cursor=shiftDateKey(state._lastReconcile,1),totalMissed=0,totalPenalty=0;
+  // Preserve the v2.2.2 first-run safeguard: do not charge dates before this
+  // reconciliation feature was first used.
+  if(!state._lastReconcile)state._lastReconcile=shiftDateKey(latestFinalized,-1);
+  // Recover safely if a clock change or an older build left the cursor ahead.
+  let cursor=shiftDateKey(state._lastReconcile,1),totalMissed=0,totalPenalty=0,changed=false;
   while(cursor<=latestFinalized){
     const day=cursor,wasRecovery=!!state.recoveryDays[day];
     if(!wasRecovery){
+      // Daily, habit, main and milestone objectives are expected on each
+      // active day. Weekly objectives are deliberately excluded here.
       const missed=activeQuests().filter(q=>
-        (q.type==='daily'||q.type==='habit') &&
+        ['daily','habit','main','milestone'].includes(q.type) &&
         (!q.createdAt || q.createdAt < new Date(shiftDateKey(day,1)+'T00:00:00').getTime()) &&
         !questDone(q,day) && !state.missed[day+'|'+q.id]
       );
       for(const q of missed){
         const key=day+'|'+q.id;
         if(state.missed[key])continue;
-        state.missed[key]=true;totalMissed++;
-        const potential=Number(q.customXp)||XP[q.difficulty]||25;
+        // Mark before applying the penalty so repeated ticks/reloads cannot
+        // charge the same objective twice. The entire change is saved below.
+        state.missed[key]=true;totalMissed++;changed=true;
+        const potential=Math.max(0,Number(q.customXp)||XP[q.difficulty]||25);
         const penalty=potential*2;
         const actualDeducted=deductXP(penalty,day);
         totalPenalty+=actualDeducted;
-        log('missed',`Missed ${q.type==='habit'?'habit':'quest'}: ${q.title} · ${displayDate(day)} · penalty 2×${potential} XP`, -actualDeducted);
+        log('missed',`Missed ${q.type}: ${q.title} · ${displayDate(day)} · penalty 2×${potential} XP`,-actualDeducted);
         if(state.settings.penalty==='strict')state.discipline=Math.max(0,state.discipline-1);
       }
     }
     state._lastReconcile=day;
+    changed=true;
     cursor=shiftDateKey(cursor,1);
   }
+  if(changed){
+    // Individual streaks are derived from each objective's own completion
+    // dates. A missing date therefore breaks that objective's streak only.
+    recomputeStreak();
+    save();
+  }
   if(totalMissed)notify(`${totalMissed} missed objective(s) finalised · ${totalPenalty} XP deducted.`);
-  recomputeStreak();
-  save();
+  return {changed,totalMissed,totalPenalty};
 }
 function updateGraceBanner(){
   const el=document.getElementById('graceBanner');if(!el)return;
@@ -416,8 +427,11 @@ function updateGraceBanner(){
 }
 function systemClockTick(){
   const before=periodInfo(new Date()).inGrace;
-  dailyReconcile();updateGraceBanner();
-  if(before){const nowGrace=periodInfo(new Date()).inGrace;if(!nowGrace){render();notify('Grace period ended. Previous-day objectives are now finalised.')}}
+  const result=dailyReconcile();
+  updateGraceBanner();
+  const after=periodInfo(new Date()).inGrace;
+  if(result.changed||before!==after)render();
+  if(before&&!after)notify('Grace period ended. Previous-day objectives were finalised.');
 }
 
 const ASSISTANT_FILES={"F":"Light_Blue_White_Accent_Rank_F.png","E":"Dark_Blue_Rank_E.png","D":"Black_Purple_Rank_D.png","C":"Golden_Yellow_Rank_C.png","B":"Crimson_Red_Rank_B.png","A":"Emerald_Green_Rank_A.png","S":"Angle_White_Rank_S.png","S+":"Ash_Black_Rank_S+.png","S++":"Heavy_Purple_Black_accent_Rank_S++.png"};
